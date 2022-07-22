@@ -30,7 +30,7 @@ else:
 	print('[*] No existing connection found')
 
 
-if conn_time is not None and conn_time > (curr_time - timedelta(hours=24)):
+if conn_time is not None and conn_time > (curr_time - timedelta(hours=18)):
 	print(f'[*] Connecting to existing connection: {connection}')
 	os.system(f'nmcli connection up {connection}')
 else:
