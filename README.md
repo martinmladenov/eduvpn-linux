@@ -27,3 +27,13 @@ printf "yourtotpsecrethere" | secret-tool store --label "TU Delft VPN login" acc
 ```
 
 _Note: the TOTP secret is not a single-use six-digit tokens, it is the key used to generate such tokens. To get it, disable and enable app-based MFA on the TU Delft website, then insert the secret into the keystore before scanning the code with your authenticator app and confirming. Alternatively, you might be able to extract the secret from your existing authenticator app if it allows that._
+
+### Mark script as executable
+```sh
+chmod +x eduvpn-linux.py
+```
+
+## Usage
+```sh
+./eduvpn-linux.py
+```
