@@ -3,17 +3,17 @@
 from datetime import datetime, timedelta
 import os
 from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 import time
-from getpass import getpass
-
-# constants
-netid = ''
+import subprocess
+import pyotp
 
 time_format = '%Y%m%d_%H%M%S'
 openvpn_connection_name = 'tudelft_%s'
 openvpn_connection_time_format = openvpn_connection_name % time_format
 openvpn_file_path = '/tmp/eduvpn_script'
-
 
 curr_time = datetime.now()
 
@@ -55,38 +55,57 @@ else:
 	try:
 		driver.get('https://tudelft.eduvpn.nl/portal/home')
 
+		wait = WebDriverWait(driver, 30)
+
+		login_btn = wait.until(EC.visibility_of_element_located((By.ID, 'submit_button')))
 		username_field = driver.find_element_by_id('username')
 		password_field = driver.find_element_by_id('password')
-		login_btn = driver.find_element_by_id('submit_button')
-		if len(netid) > 0:
-			print(f'Username: {netid}')
-		else:
-			netid = input('Username: ')
+
+		# retrieve username from secret store
+		netid = subprocess.check_output(['secret-tool', 'lookup', 'account', 'tudelft', 'type', 'username']).decode("utf-8") 
+
+		assert len(netid) > 0
+		
+		# retrieve password and totp secret
+		password = subprocess.check_output(['secret-tool', 'lookup', 'account', 'tudelft', 'type', 'password', 'username', netid]).decode("utf-8") 
+		totp_secret = subprocess.check_output(['secret-tool', 'lookup', 'account', 'tudelft', 'type', 'totp', 'username', netid]).decode("utf-8") 
+
+		assert len(password) > 0
+		assert len(totp_secret) > 0
+
 		username_field.send_keys(netid)
-		# password = input('Password: ')
-		password = getpass()
 		password_field.send_keys(password)
 		login_btn.click()
 
-		token_field = driver.find_element_by_id('code_id')
-		token = input('Token: ')
-		token_field.send_keys(token)
-		login_token_btn = driver.find_element_by_xpath('/html/body/div[1]/div[4]/div/div[3]/form/input[2]')
-		login_token_btn.click()
+		# wait until the mfa page loads
+		wait.until(EC.visibility_of_element_located((By.ID, 'submit-btn')))
 
-		print('[*] Login completed')
-		time.sleep(2)
+		totp_token = pyotp.TOTP(totp_secret).now()
+
+		for i in range(0, 6):
+			token_field = driver.find_element_by_id(f"otp_{i}")
+			token_field.send_keys(totp_token[i])
+		
+		# login_token_btn.click()
+		# no need to click the login button as the page auto-redirects
+
+		print('[*] Login completed as ' + netid)
 		print('[*] Creating configuration...')
 		# navigate to configurations page
-		driver.find_element_by_xpath('/html/body/nav/ul/li[2]/a').click()
-		# delete existing configuration
-		driver.find_element_by_xpath('/html/body/main/table/tbody/tr/td[3]/form/button').click()
+		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/nav/ul/li[2]/a'))).click()
+
+		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/details/summary')))
+		try:
+			# delete existing configuration if any are present
+			driver.find_element_by_xpath('/html/body/main/table/tbody/tr/td[3]/form/button').click()
+		except:
+			pass
 		# create and download new configuration
-		driver.find_element_by_xpath('/html/body/main/details/summary').click()
+		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/details/summary'))).click()
 		driver.find_element_by_id('displayName').send_keys('a')
 		driver.find_element_by_xpath('/html/body/main/details/form/fieldset[2]/button').click()
 		print('[*] Configuration created, downloading...')
-		time.sleep(2)
+		time.sleep(1)
 		driver.quit()
 	except:
 		driver.quit()
