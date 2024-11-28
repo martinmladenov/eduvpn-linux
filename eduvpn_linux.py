@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 import os
 from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 import time
@@ -41,16 +41,15 @@ else:
 	print('[*] Downloading new connection profile...')
 
 	os.system(f'mkdir {openvpn_file_path}')
-	profile = webdriver.FirefoxProfile()
-	profile.set_preference("browser.download.folderList", 2)
-	profile.set_preference("browser.download.manager.showWhenStarting", False)
-	profile.set_preference("browser.download.dir", openvpn_file_path)
-	profile.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/x-gzip")	
 
 	options = webdriver.firefox.options.Options()
-	options.add_argument("--headless")
+	options.set_preference("browser.download.folderList", 2)
+	options.set_preference("browser.download.manager.showWhenStarting", False)
+	options.set_preference("browser.download.dir", openvpn_file_path)
+	options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/x-gzip")	
+	# options.add_argument("--headless")
 
-	driver = webdriver.Firefox(firefox_profile=profile, options=options)
+	driver = webdriver.Firefox(options=options)
 
 	try:
 		driver.get('https://tudelft.eduvpn.nl/portal/home')
@@ -58,8 +57,8 @@ else:
 		wait = WebDriverWait(driver, 30)
 
 		login_btn = wait.until(EC.visibility_of_element_located((By.ID, 'submit_button')))
-		username_field = driver.find_element_by_id('username')
-		password_field = driver.find_element_by_id('password')
+		username_field = driver.find_element(By.ID, 'username')
+		password_field = driver.find_element(By.ID, 'password')
 
 		# retrieve username from secret store
 		netid = subprocess.check_output(['secret-tool', 'lookup', 'account', 'tudelft', 'type', 'username']).decode("utf-8") 
@@ -83,7 +82,7 @@ else:
 		totp_token = pyotp.TOTP(totp_secret).now()
 
 		for i in range(0, 6):
-			token_field = driver.find_element_by_id(f"otp_{i}")
+			token_field = driver.find_element(By.ID, f"otp_{i}")
 			token_field.send_keys(totp_token[i])
 		
 		# login_token_btn.click()
@@ -91,20 +90,20 @@ else:
 
 		print('[*] Login completed as ' + netid)
 		print('[*] Creating configuration...')
-		# navigate to configurations page
-		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/nav/ul/li[2]/a'))).click()
 
-		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/details/summary')))
+		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/form')))
 		try:
 			# delete existing configuration if any are present
-			driver.find_element_by_xpath('/html/body/main/table/tbody/tr/td[3]/form/button').click()
+			driver.find_element(By.XPATH, '/html/body/main/table/tbody/tr/td[4]/form/button').click()
 		except:
 			pass
 		# create and download new configuration
-		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/details/summary'))).click()
-		driver.find_element_by_id('displayName').send_keys('a')
-		driver.find_element_by_xpath('/html/body/main/details/form/fieldset[2]/button').click()
-		print('[*] Configuration created, downloading...')
+		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/form')))
+		profile_selector = Select(driver.find_element(By.ID, 'profileId'))
+		profile_selector.select_by_value('student_openvpn+udp')
+		driver.find_element(By.ID, 'displayName').send_keys('a')
+		driver.find_element(By.XPATH, '/html/body/main/form/fieldset[2]/button').click()
+		print('[*] Configuration created, downloading...')	
 		time.sleep(1)
 		driver.quit()
 	except:
@@ -119,7 +118,7 @@ else:
 	os.system(f'nmcli connection import type openvpn file {full_path}')
 
 	print('[*] Cleaning up...')
-	os.system(f'rm {full_path} && rmdir {openvpn_file_path}')
+	os.system(f'rm {openvpn_file_path}/*.ovpn && rmdir {openvpn_file_path}')
 
 	print('[*] Activating configuration...')
 	os.system(f'nmcli connection up {conn_name}')
