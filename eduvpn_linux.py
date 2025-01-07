@@ -47,6 +47,9 @@ else:
 	options.set_preference("browser.download.manager.showWhenStarting", False)
 	options.set_preference("browser.download.dir", openvpn_file_path)
 	options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/x-gzip")	
+
+	options.set_capability("acceptInsecureCerts", False)
+
 	# options.add_argument("--headless")
 
 	driver = webdriver.Firefox(options=options)
@@ -98,7 +101,7 @@ else:
 		except:
 			pass
 		# create and download new configuration
-		wait.until(EC.visibility_of_element_located((By.XPATH, '/html/body/main/form')))
+		wait.until(EC.visibility_of_element_located((By.ID, 'profileId')))
 		profile_selector = Select(driver.find_element(By.ID, 'profileId'))
 		profile_selector.select_by_value('student_openvpn+udp')
 		driver.find_element(By.ID, 'displayName').send_keys('a')
